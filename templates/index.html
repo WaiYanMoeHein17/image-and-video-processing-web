@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FilmMaster & ImagePro - Professional Media Processing</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1><i class="fas fa-video"></i> FilmMaster & ImagePro</h1>
+            <p>Professional Image and Video Processing Suite</p>
+        </header>
+
+        <!-- File Upload Section -->
+        <section class="upload-section">
+            <div class="upload-container">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-content">
+                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                        <h3>Drag & Drop Your Media</h3>
+                        <p>Or <span class="browse-text">browse files</span></p>
+                        <p class="file-types">Supports: Images (PNG, JPG, GIF) • Videos (MP4, AVI, MOV)</p>
+                        <p class="size-limit">Max: 100MB • Videos up to 1 minute</p>
+                    </div>
+                    <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;">
+                </div>
+                
+                <div class="upload-progress" id="uploadProgress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <span class="progress-text" id="progressText">Uploading...</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Media Preview Section -->
+        <section class="preview-section" id="previewSection" style="display: none;">
+            <div class="preview-container">
+                <div class="preview-header">
+                    <h3 id="mediaTitle">Your Media</h3>
+                    <div class="preview-actions">
+                        <button class="btn btn-secondary" id="resetBtn">
+                            <i class="fas fa-undo"></i> Reset
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="preview-content">
+                    <div class="original-media">
+                        <h4>Original</h4>
+                        <div class="media-container" id="originalContainer">
+                            <!-- Media will be inserted here -->
+                        </div>
+                    </div>
+                    
+                    <div class="processed-media">
+                        <h4>Processed</h4>
+                        <div class="media-container" id="processedContainer">
+                            <div class="placeholder">
+                                <i class="fas fa-magic"></i>
+                                <p>Apply operations to see results</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Processing Controls -->
+        <section class="controls-section" id="controlsSection" style="display: none;">
+            <div class="controls-container">
+                <div class="controls-header">
+                    <h3 id="controlsTitle">Processing Controls</h3>
+                    <div class="media-type-badge" id="mediaTypeBadge"></div>
+                </div>
+                
+                <!-- Operations Panel -->
+                <div class="operations-panel">
+                    <div class="operations-header">
+                        <h4>Available Operations</h4>
+                        <button class="btn btn-primary" id="addOperationBtn">
+                            <i class="fas fa-plus"></i> Add Operation
+                        </button>
+                    </div>
+                    
+                    <div class="operations-list" id="operationsList">
+                        <!-- Operations will be added here dynamically -->
+                    </div>
+                </div>
+                
+                <!-- Applied Operations -->
+                <div class="applied-operations">
+                    <h4>Applied Operations <span id="operationCount">(0)</span></h4>
+                    <div class="applied-list" id="appliedList">
+                        <div class="no-operations">No operations applied yet</div>
+                    </div>
+                </div>
+                
+                <!-- Process Button -->
+                <div class="process-controls">
+                    <button class="btn btn-process" id="processBtn" disabled>
+                        <i class="fas fa-cogs"></i> Process Media
+                    </button>
+                    <button class="btn btn-success" id="downloadBtn" style="display: none;">
+                        <i class="fas fa-download"></i> Download Result
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Processing Status -->
+        <div class="processing-overlay" id="processingOverlay" style="display: none;">
+            <div class="processing-modal">
+                <div class="processing-spinner">
+                    <i class="fas fa-cogs fa-spin"></i>
+                </div>
+                <h3>Processing Your Media</h3>
+                <p id="processingStatus">Initializing...</p>
+                <div class="processing-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="processingProgressFill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Operation Modal -->
+        <div class="modal-overlay" id="operationModal" style="display: none;">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3 id="modalTitle">Add Operation</h3>
+                    <button class="modal-close" id="modalClose">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="modal-body">
+                    <div class="operation-selector">
+                        <label for="operationSelect">Select Operation:</label>
+                        <select id="operationSelect">
+                            <option value="">Choose an operation...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="operation-description" id="operationDescription">
+                        <p>Select an operation to see its description and parameters.</p>
+                    </div>
+                    
+                    <div class="operation-params" id="operationParams">
+                        <!-- Parameters will be added dynamically -->
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="modalCancel">Cancel</button>
+                    <button class="btn btn-primary" id="modalAdd" disabled>Add Operation</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
