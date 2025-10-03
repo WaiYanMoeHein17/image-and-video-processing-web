@@ -2,3 +2,7 @@
 /__pycache__
 /.vscode
 /uploads
+/.pytest_cache
+/tests/sample_images/*
+!/tests/sample_images/README.md
+/tests/__pycache__

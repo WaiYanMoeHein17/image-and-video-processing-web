@@ -1,0 +1,21 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "unit: Unit tests for individual functions",
+    "integration: Integration tests for API endpoints", 
+    "functional: End-to-end functional tests",
+    "slow: Tests that take a long time to run",
+    "requires_dll: Tests that require video_functions.dll to be compiled",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
