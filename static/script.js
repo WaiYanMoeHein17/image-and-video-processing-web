@@ -260,7 +260,10 @@ class MediaProcessor {
         
         // Update description
         this.operationDescription.innerHTML = `
-            <h4>${operation.display_name}</h4>
+            <div class="operation-info-header">
+                <i class="fas fa-magic"></i>
+                <h4>${operation.display_name}</h4>
+            </div>
             <p>${operation.description}</p>
         `;
         
@@ -268,18 +271,35 @@ class MediaProcessor {
         this.operationParams.innerHTML = '';
         
         if (operation.params && operation.params.length > 0) {
+            const paramsContainer = document.createElement('div');
+            paramsContainer.className = 'params-container';
+            
             operation.params.forEach(param => {
                 const paramGroup = document.createElement('div');
                 paramGroup.className = 'param-group';
                 
+                const labelContainer = document.createElement('div');
+                labelContainer.className = 'param-label-container';
+                
                 const label = document.createElement('label');
-                label.textContent = param.name.replace('_', ' ').toUpperCase();
-                paramGroup.appendChild(label);
+                label.textContent = this.formatParameterName(param.name);
+                labelContainer.appendChild(label);
+                
+                if (param.description) {
+                    const tooltip = document.createElement('span');
+                    tooltip.className = 'param-tooltip';
+                    tooltip.innerHTML = `<i class="fas fa-info-circle"></i>`;
+                    tooltip.title = param.description;
+                    labelContainer.appendChild(tooltip);
+                }
+                
+                paramGroup.appendChild(labelContainer);
                 
                 if (param.options) {
                     // Dropdown for options
                     const select = document.createElement('select');
                     select.name = param.name;
+                    select.className = 'param-select';
                     
                     param.options.forEach(option => {
                         const opt = document.createElement('option');
@@ -291,45 +311,82 @@ class MediaProcessor {
                     
                     paramGroup.appendChild(select);
                 } else if (param.type === 'float' || param.type === 'int') {
-                    // Range input with number display
-                    const rangeContainer = document.createElement('div');
-                    rangeContainer.className = 'range-input';
+                    // Enhanced slider with better styling
+                    const sliderContainer = document.createElement('div');
+                    sliderContainer.className = 'slider-container';
+                    
+                    const sliderTrack = document.createElement('div');
+                    sliderTrack.className = 'slider-track';
                     
                     const range = document.createElement('input');
                     range.type = 'range';
                     range.name = param.name;
+                    range.className = 'param-slider';
                     range.min = param.min || 0;
                     range.max = param.max || 100;
                     range.step = param.step || (param.type === 'float' ? 0.1 : 1);
                     range.value = param.default;
                     
+                    const valueContainer = document.createElement('div');
+                    valueContainer.className = 'value-container';
+                    
                     const valueDisplay = document.createElement('input');
                     valueDisplay.type = 'number';
-                    valueDisplay.className = 'range-value';
+                    valueDisplay.className = 'param-value';
                     valueDisplay.min = range.min;
                     valueDisplay.max = range.max;
                     valueDisplay.step = range.step;
                     valueDisplay.value = param.default;
                     
-                    // Sync range and number inputs
+                    const rangeInfo = document.createElement('div');
+                    rangeInfo.className = 'range-info';
+                    rangeInfo.innerHTML = `<span class="range-min">${param.min || 0}</span><span class="range-max">${param.max || 100}</span>`;
+                    
+                    // Sync range and number inputs with enhanced feedback
+                    const updateValue = () => {
+                        const percentage = ((range.value - range.min) / (range.max - range.min)) * 100;
+                        range.style.setProperty('--slider-progress', percentage + '%');
+                    };
+                    
                     range.addEventListener('input', () => {
                         valueDisplay.value = range.value;
+                        updateValue();
                     });
                     
                     valueDisplay.addEventListener('input', () => {
-                        range.value = valueDisplay.value;
+                        const value = Math.max(range.min, Math.min(range.max, valueDisplay.value));
+                        range.value = value;
+                        valueDisplay.value = value;
+                        updateValue();
                     });
                     
-                    rangeContainer.appendChild(range);
-                    rangeContainer.appendChild(valueDisplay);
-                    paramGroup.appendChild(rangeContainer);
+                    // Initialize slider progress
+                    updateValue();
+                    
+                    sliderTrack.appendChild(range);
+                    sliderContainer.appendChild(sliderTrack);
+                    valueContainer.appendChild(valueDisplay);
+                    sliderContainer.appendChild(valueContainer);
+                    sliderContainer.appendChild(rangeInfo);
+                    paramGroup.appendChild(sliderContainer);
                 }
                 
-                this.operationParams.appendChild(paramGroup);
+                paramsContainer.appendChild(paramGroup);
             });
+            
+            this.operationParams.appendChild(paramsContainer);
+        } else {
+            const noParamsMessage = document.createElement('div');
+            noParamsMessage.className = 'no-params-message';
+            noParamsMessage.innerHTML = '<i class="fas fa-check-circle"></i> This operation requires no additional parameters';
+            this.operationParams.appendChild(noParamsMessage);
         }
         
         this.modalAdd.disabled = false;
+    }
+    
+    formatParameterName(name) {
+        return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
     
     addOperation() {
@@ -373,7 +430,17 @@ class MediaProcessor {
             return;
         }
         
-        this.appliedList.innerHTML = '';
+        // Add pipeline info
+        let pipelineInfo = '';
+        if (this.appliedOperations.length > 0) {
+            pipelineInfo = `
+                <div class="pipeline-info">
+                    <p><i class="fas fa-info-circle"></i> Operations will be applied in the order shown below. Use the arrow buttons to reorder.</p>
+                </div>
+            `;
+        }
+        
+        this.appliedList.innerHTML = pipelineInfo;
         
         this.appliedOperations.forEach((op, index) => {
             const opElement = document.createElement('div');
@@ -384,13 +451,24 @@ class MediaProcessor {
                 : 'No parameters';
             
             opElement.innerHTML = `
-                <div class="operation-info">
-                    <h6>${op.display_name}</h6>
-                    <div class="operation-params-display">${paramsText}</div>
+                <div style="display: flex; align-items: center; flex: 1;">
+                    <div class="operation-order">${index + 1}</div>
+                    <div class="operation-info">
+                        <h6>${op.display_name}</h6>
+                        <div class="operation-params-display">${paramsText}</div>
+                    </div>
                 </div>
-                <button class="remove-operation" onclick="mediaProcessor.removeOperation(${index})">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div class="operation-actions">
+                    <button class="move-btn" onclick="mediaProcessor.moveOperation(${index}, 'up')" ${index === 0 ? 'disabled' : ''}>
+                        <i class="fas fa-arrow-up"></i>
+                    </button>
+                    <button class="move-btn" onclick="mediaProcessor.moveOperation(${index}, 'down')" ${index === this.appliedOperations.length - 1 ? 'disabled' : ''}>
+                        <i class="fas fa-arrow-down"></i>
+                    </button>
+                    <button class="remove-operation" onclick="mediaProcessor.removeOperation(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             `;
             
             this.appliedList.appendChild(opElement);
@@ -401,6 +479,20 @@ class MediaProcessor {
         this.appliedOperations.splice(index, 1);
         this.updateAppliedOperations();
         this.updateProcessButton();
+    }
+    
+    moveOperation(index, direction) {
+        if (direction === 'up' && index > 0) {
+            // Swap with previous operation
+            [this.appliedOperations[index - 1], this.appliedOperations[index]] = 
+            [this.appliedOperations[index], this.appliedOperations[index - 1]];
+        } else if (direction === 'down' && index < this.appliedOperations.length - 1) {
+            // Swap with next operation
+            [this.appliedOperations[index], this.appliedOperations[index + 1]] = 
+            [this.appliedOperations[index + 1], this.appliedOperations[index]];
+        }
+        
+        this.updateAppliedOperations();
     }
     
     updateProcessButton() {
@@ -456,6 +548,13 @@ class MediaProcessor {
             const img = document.createElement('img');
             img.src = url;
             img.alt = 'Processed image';
+            img.className = 'processed-image';
+            
+            // Add loading state
+            img.onload = () => {
+                img.classList.add('loaded');
+            };
+            
             this.processedContainer.appendChild(img);
         } else if (this.currentFileType === 'video') {
             const video = document.createElement('video');
@@ -463,6 +562,7 @@ class MediaProcessor {
             video.controls = true;
             video.autoplay = false;
             video.loop = true;
+            video.className = 'processed-video';
             this.processedContainer.appendChild(video);
         }
     }
