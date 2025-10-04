@@ -525,7 +525,14 @@ class MediaProcessor {
             const result = await response.json();
             
             if (result.success) {
-                this.displayProcessedMedia(result.processed_file);
+                // Clear any existing processed media first
+                this.processedContainer.innerHTML = '<div class="placeholder"><i class="fas fa-hourglass-half"></i><p>Loading processed image...</p></div>';
+                
+                // Display the new processed media
+                setTimeout(() => {
+                    this.displayProcessedMedia(result.processed_file);
+                }, 100);
+                
                 this.downloadBtn.style.display = 'inline-flex';
                 this.downloadBtn.setAttribute('data-filename', result.processed_file);
                 this.showSuccess(`Processing completed! Applied ${result.operations_applied} operations.`);
@@ -540,7 +547,9 @@ class MediaProcessor {
     }
     
     displayProcessedMedia(filename) {
-        const url = `/download/${filename}`;
+        // Add timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        const url = `/download/${filename}?t=${timestamp}`;
         
         this.processedContainer.innerHTML = '';
         

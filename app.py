@@ -152,8 +152,17 @@ def process_image():
                 stride = params.get('stride', 3)
                 processed_img = image_processor.criminisi_inpaint_black_circle(processed_img, patch_size, stride)
         
-        # Save processed image
-        output_filename = f"{file_id}_processed.png"
+        # Clean up old processed files for this file_id to prevent accumulation
+        for existing_file in os.listdir(app.config['PROCESSED_FOLDER']):
+            if existing_file.startswith(f"{file_id}_") and existing_file.endswith("_processed.png"):
+                try:
+                    os.remove(os.path.join(app.config['PROCESSED_FOLDER'], existing_file))
+                except:
+                    pass  # Ignore errors if file is in use
+        
+        # Save processed image with unique filename to prevent caching
+        unique_id = str(uuid.uuid4())
+        output_filename = f"{file_id}_{unique_id}_processed.png"
         output_path = os.path.join(app.config['PROCESSED_FOLDER'], output_filename)
         cv2.imwrite(output_path, processed_img)
         
@@ -339,8 +348,17 @@ def process_video():
                 scale_factor = params.get('scale_factor', 1.0)
                 video_processor.scale_channel(video_ptr, channel, scale_factor, mode)
         
-        # Save processed video
-        output_filename = f"{file_id}_processed.mp4"
+        # Clean up old processed files for this file_id to prevent accumulation
+        for existing_file in os.listdir(app.config['PROCESSED_FOLDER']):
+            if existing_file.startswith(f"{file_id}_") and existing_file.endswith("_processed.mp4"):
+                try:
+                    os.remove(os.path.join(app.config['PROCESSED_FOLDER'], existing_file))
+                except:
+                    pass  # Ignore errors if file is in use
+        
+        # Save processed video with unique filename to prevent caching
+        unique_id = str(uuid.uuid4())
+        output_filename = f"{file_id}_{unique_id}_processed.mp4"
         output_path = os.path.join(app.config['PROCESSED_FOLDER'], output_filename)
         
         result = video_processor.encode_video(output_path, video_ptr, mode)
