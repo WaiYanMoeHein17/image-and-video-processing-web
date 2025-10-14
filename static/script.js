@@ -6,6 +6,9 @@ class MediaProcessor {
         this.currentFileType = null;
         this.appliedOperations = [];
         this.availableOperations = [];
+        this.useWASM = false;
+        this.wasmModule = null;
+        this.videoBuffer = null;
         
         this.initializeElements();
         this.bindEvents();
@@ -31,6 +34,7 @@ class MediaProcessor {
         this.controlsSection = document.getElementById('controlsSection');
         this.controlsTitle = document.getElementById('controlsTitle');
         this.mediaTypeBadge = document.getElementById('mediaTypeBadge');
+        this.processingModeBadge = document.getElementById('processingModeBadge');
         this.addOperationBtn = document.getElementById('addOperationBtn');
         this.operationsList = document.getElementById('operationsList');
         this.appliedList = document.getElementById('appliedList');
@@ -110,31 +114,40 @@ class MediaProcessor {
     }
     
     async handleFile(file) {
-        // Validate file size (100MB limit)
-        if (file.size > 100 * 1024 * 1024) {
-            this.showError('File size exceeds 100MB limit');
-            return;
-        }
+        // Determine processing mode based on file size
+        const fileSizeMB = file.size / (1024 * 1024);
+        const useWASM = fileSizeMB > 50 && file.type.startsWith('video/');
         
-        // Show upload progress
-        this.showUploadProgress();
+        console.log(`File size: ${fileSizeMB.toFixed(2)}MB, Using WASM: ${useWASM}`);
         
-        try {
-            const response = await this.uploadFile(file);
-            
-            if (response.success) {
-                this.currentFile = response;
-                this.currentFileType = response.file_type;
-                this.displayMedia(file, response.file_type);
-                this.showControls(response.file_type);
-                this.loadOperations();
+        // Show upload progress (skip for WASM processing)
+        if (!useWASM) {
+            this.showUploadProgress();
+        }        try {
+            if (useWASM) {
+                // Handle WASM processing (no upload needed)
+                await this.handleWASMFile(file);
             } else {
-                this.showError(response.error || 'Upload failed');
+                // Handle server-side processing (upload required)
+                const response = await this.uploadFile(file);
+                
+                if (response.success) {
+                    this.currentFile = response;
+                    this.currentFileType = response.file_type;
+                    this.useWASM = false;
+                    this.displayMedia(file, response.file_type);
+                    this.showControls(response.file_type);
+                    this.loadOperations();
+                } else {
+                    this.showError(response.error || 'Upload failed');
+                }
             }
         } catch (error) {
-            this.showError('Upload failed: ' + error.message);
+            this.showError('Processing failed: ' + error.message);
         } finally {
-            this.hideUploadProgress();
+            if (!useWASM) {
+                this.hideUploadProgress();
+            }
         }
     }
     
@@ -148,6 +161,55 @@ class MediaProcessor {
         });
         
         return await response.json();
+    }
+    
+    async handleWASMFile(file) {
+        // Set WASM mode
+        this.useWASM = true;
+        this.currentFile = { file_id: 'wasm_' + Date.now(), filename: file.name };
+        this.currentFileType = 'video';
+        
+        // Load WASM module if not already loaded
+        if (!this.wasmModule) {
+            await this.loadWASMModule();
+        }
+        
+        // Convert video file to buffer for WASM processing
+        this.videoBuffer = await this.fileToArrayBuffer(file);
+        
+        // Display media and controls
+        this.displayMedia(file, 'video');
+        this.showControls('video');
+        this.loadOperations();
+    }
+    
+    async loadWASMModule() {
+        try {
+            console.log('Loading WASM module...');
+            
+            if (!window.wasmVideoProcessor) {
+                throw new Error('WASM video processor not available');
+            }
+            
+            const initialized = await window.wasmVideoProcessor.initialize();
+            if (!initialized) {
+                throw new Error('Failed to initialize WASM processor');
+            }
+            
+            this.wasmModule = window.wasmVideoProcessor;
+            console.log('WASM module loaded successfully');
+        } catch (error) {
+            throw new Error('Failed to load WASM module: ' + error.message);
+        }
+    }
+    
+    async fileToArrayBuffer(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsArrayBuffer(file);
+        });
     }
     
     displayMedia(file, fileType) {
@@ -184,6 +246,18 @@ class MediaProcessor {
         this.controlsTitle.textContent = `${fileType === 'image' ? 'Image' : 'Video'} Processing Controls`;
         this.mediaTypeBadge.textContent = fileType;
         this.mediaTypeBadge.className = `media-type-badge ${fileType}`;
+        
+        // Show processing mode badge
+        if (this.useWASM) {
+            this.processingModeBadge.textContent = 'WebAssembly';
+            this.processingModeBadge.className = 'processing-mode-badge wasm';
+            this.processingModeBadge.style.display = 'inline-block';
+        } else {
+            this.processingModeBadge.textContent = 'Server-side';
+            this.processingModeBadge.className = 'processing-mode-badge server';
+            this.processingModeBadge.style.display = 'inline-block';
+        }
+        
         this.controlsSection.style.display = 'block';
     }
     
@@ -506,43 +580,108 @@ class MediaProcessor {
         this.showProcessingOverlay();
         
         try {
-            const endpoint = this.currentFileType === 'image' ? '/process_image' : '/process_video';
-            
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    file_id: this.currentFile.file_id,
-                    operations: this.appliedOperations.map(op => ({
-                        name: op.name,
-                        params: op.params
-                    }))
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                // Clear any existing processed media first
-                this.processedContainer.innerHTML = '<div class="placeholder"><i class="fas fa-hourglass-half"></i><p>Loading processed image...</p></div>';
-                
-                // Display the new processed media
-                setTimeout(() => {
-                    this.displayProcessedMedia(result.processed_file);
-                }, 100);
-                
-                this.downloadBtn.style.display = 'inline-flex';
-                this.downloadBtn.setAttribute('data-filename', result.processed_file);
-                this.showSuccess(`Processing completed! Applied ${result.operations_applied} operations.`);
+            if (this.useWASM) {
+                // Process using WASM
+                await this.processWithWASM();
             } else {
-                this.showError(result.error || 'Processing failed');
+                // Process using server-side
+                await this.processWithServer();
             }
         } catch (error) {
             this.showError('Processing failed: ' + error.message);
         } finally {
             this.hideProcessingOverlay();
+        }
+    }
+    
+    async processWithServer() {
+        const endpoint = this.currentFileType === 'image' ? '/process_image' : '/process_video';
+        
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                file_id: this.currentFile.file_id,
+                operations: this.appliedOperations.map(op => ({
+                    name: op.name,
+                    params: op.params
+                }))
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Clear any existing processed media first
+            this.processedContainer.innerHTML = '<div class="placeholder"><i class="fas fa-hourglass-half"></i><p>Loading processed media...</p></div>';
+            
+            // Display the new processed media
+            setTimeout(() => {
+                this.displayProcessedMedia(result.processed_file);
+            }, 100);
+            
+            this.downloadBtn.style.display = 'inline-flex';
+            this.downloadBtn.setAttribute('data-filename', result.processed_file);
+            this.showSuccess(`Processing completed! Applied ${result.operations_applied} operations.`);
+        } else {
+            this.showError(result.error || 'Processing failed');
+        }
+    }
+    
+    async processWithWASM() {
+        if (!this.wasmModule || !this.videoBuffer) {
+            throw new Error('WASM module or video buffer not available');
+        }
+        
+        try {
+            console.log('Processing with WASM...', this.appliedOperations);
+            
+            // Convert the file buffer to a File object for processing
+            const videoFile = new File([this.videoBuffer], this.currentFile.filename, { type: 'video/mp4' });
+            
+            // Process the video file with WASM
+            await this.wasmModule.processVideoFile(videoFile);
+            
+            // Apply operations in chunks
+            for (let i = 0; i < this.appliedOperations.length; i++) {
+                const operation = this.appliedOperations[i];
+                
+                // Update processing status
+                this.processingStatus.textContent = `Applying ${operation.display_name}... (${i + 1}/${this.appliedOperations.length})`;
+                
+                await this.applyWASMOperation(operation);
+                
+                // Small delay to allow UI updates and prevent blocking
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // Export the processed video
+            this.processingStatus.textContent = 'Exporting processed video...';
+            const processedData = await this.wasmModule.exportVideo();
+            
+            // Create blob and display
+            const processedBlob = new Blob([processedData], { type: 'application/octet-stream' });
+            const processedUrl = URL.createObjectURL(processedBlob);
+            
+            // For display, we'll create a video element with the original video
+            // In a real implementation, you'd convert the processed data back to a video format
+            this.displayProcessedWASMVideo(processedUrl);
+            
+            // Enable download
+            this.downloadBtn.style.display = 'inline-flex';
+            this.downloadBtn.setAttribute('data-wasm-url', processedUrl);
+            this.downloadBtn.setAttribute('data-filename', 'processed_' + this.currentFile.filename);
+            
+            this.showSuccess(`WASM processing completed! Applied ${this.appliedOperations.length} operations.`);
+            
+        } catch (error) {
+            console.error('WASM processing error:', error);
+            throw error;
+        } finally {
+            // Cleanup WASM memory
+            this.wasmModule.cleanup();
         }
     }
     
@@ -576,9 +715,77 @@ class MediaProcessor {
         }
     }
     
+    async applyWASMOperation(operation) {
+        const params = operation.params;
+        
+        switch (operation.name) {
+            case 'reverse':
+                await this.wasmModule.reverseVideo();
+                break;
+                
+            case 'swap_channels':
+                const channel1 = params.channel1 || 0;
+                const channel2 = params.channel2 || 1;
+                await this.wasmModule.swapChannels(channel1, channel2);
+                break;
+                
+            case 'clip_channel':
+                const clipChannel = params.channel || 0;
+                const minVal = params.min_val || 0;
+                const maxVal = params.max_val || 255;
+                await this.wasmModule.clipChannel(clipChannel, minVal, maxVal);
+                break;
+                
+            case 'scale_channel':
+                const scaleChannel = params.channel || 0;
+                const scaleFactor = params.scale_factor || 1.0;
+                await this.wasmModule.scaleChannel(scaleChannel, scaleFactor);
+                break;
+                
+            default:
+                console.warn(`Unknown WASM operation: ${operation.name}`);
+        }
+    }
+    
+    displayProcessedWASMVideo(dataUrl) {
+        this.processedContainer.innerHTML = '';
+        
+        // Create a placeholder video element
+        // In a real implementation, you'd convert the processed data back to a proper video format
+        const placeholder = document.createElement('div');
+        placeholder.className = 'processed-placeholder';
+        placeholder.innerHTML = `
+            <div class="wasm-result">
+                <i class="fas fa-microchip"></i>
+                <h4>Video Processed with WebAssembly</h4>
+                <p>Processing completed successfully!</p>
+                <p><strong>Operations applied:</strong> ${this.appliedOperations.length}</p>
+                <div class="video-info">
+                    ${this.wasmModule.getVideoInfo() ? 
+                        `<small>Frames: ${this.wasmModule.getVideoInfo().numFrames}, 
+                         Size: ${this.wasmModule.getVideoInfo().width}x${this.wasmModule.getVideoInfo().height}</small>` 
+                        : ''}
+                </div>
+            </div>
+        `;
+        
+        this.processedContainer.appendChild(placeholder);
+    }
+    
     downloadResult() {
+        const wasmUrl = this.downloadBtn.getAttribute('data-wasm-url');
         const filename = this.downloadBtn.getAttribute('data-filename');
-        if (filename) {
+        
+        if (wasmUrl) {
+            // Download WASM-processed file
+            const link = document.createElement('a');
+            link.href = wasmUrl;
+            link.download = filename || 'processed_video.dat';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } else if (filename) {
+            // Download server-processed file
             window.open(`/download/${filename}`, '_blank');
         }
     }

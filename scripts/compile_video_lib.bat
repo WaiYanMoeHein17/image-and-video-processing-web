@@ -2,6 +2,8 @@
 echo Compiling video_functions.c to DLL...
 echo.
 
+cd ..\lib
+
 echo Attempting compilation with Visual Studio (cl.exe)...
 cl /LD video_functions.c /Fe:video_functions.dll 2>nul
 
@@ -9,6 +11,7 @@ if exist video_functions.dll (
     echo SUCCESS: video_functions.dll created successfully!
     echo.
     echo The video processing functionality is now available.
+    cd ..\scripts
     goto :end
 )
 
@@ -19,8 +22,11 @@ if exist video_functions.dll (
     echo SUCCESS: video_functions.dll created successfully with GCC!
     echo.
     echo The video processing functionality is now available.
+    cd ..\scripts
     goto :end
 )
+
+cd ..\scripts
 
 echo.
 echo ERROR: Could not compile video_functions.dll
