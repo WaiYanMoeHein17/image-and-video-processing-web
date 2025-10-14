@@ -212,6 +212,12 @@ body {
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.processing-badges {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 .media-type-badge {
     background: linear-gradient(45deg, #667eea, #764ba2);
     color: white;
@@ -220,6 +226,86 @@ body {
     font-weight: 600;
     font-size: 0.9rem;
     text-transform: uppercase;
+}
+
+.processing-mode-badge {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.processing-mode-badge.wasm {
+    background: linear-gradient(45deg, #22c55e, #16a34a);
+    color: white;
+}
+
+.processing-mode-badge.wasm::before {
+    content: '⚡';
+    font-size: 1rem;
+}
+
+.processing-mode-badge.server {
+    background: linear-gradient(45deg, #3b82f6, #1d4ed8);
+    color: white;
+}
+
+.processing-mode-badge.server::before {
+    content: '🖥️';
+    font-size: 0.8rem;
+}
+
+/* WASM Processing Results */
+.processed-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    border: 2px dashed rgba(34, 197, 94, 0.3);
+}
+
+.wasm-result {
+    text-align: center;
+    padding: 2rem;
+}
+
+.wasm-result i {
+    font-size: 3rem;
+    color: #22c55e;
+    margin-bottom: 1rem;
+    display: block;
+}
+
+.wasm-result h4 {
+    color: #22c55e;
+    margin-bottom: 0.5rem;
+    font-size: 1.2rem;
+}
+
+.wasm-result p {
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 0.5rem;
+}
+
+.video-info {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background: rgba(34, 197, 94, 0.1);
+    border-radius: 8px;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.video-info small {
+    color: #22c55e;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8rem;
 }
 
 /* Operations Panel */

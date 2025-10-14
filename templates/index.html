@@ -24,7 +24,7 @@
                         <h3>Drag & Drop Your Media</h3>
                         <p>Or <span class="browse-text">browse files</span></p>
                         <p class="file-types">Supports: Images (PNG, JPG, GIF) • Videos (MP4, AVI, MOV)</p>
-                        <p class="size-limit">Max: 100MB • Videos up to 1 minute</p>
+                        <p class="size-limit">Large files (>50MB) processed with WebAssembly</p>
                     </div>
                     <input type="file" id="fileInput" accept="image/*,video/*" style="display: none;">
                 </div>
@@ -76,7 +76,10 @@
             <div class="controls-container">
                 <div class="controls-header">
                     <h3 id="controlsTitle">Processing Controls</h3>
-                    <div class="media-type-badge" id="mediaTypeBadge"></div>
+                    <div class="processing-badges">
+                        <div class="media-type-badge" id="mediaTypeBadge"></div>
+                        <div class="processing-mode-badge" id="processingModeBadge" style="display: none;"></div>
+                    </div>
                 </div>
                 
                 <!-- Operations Panel -->
@@ -164,6 +167,22 @@
         </div>
     </div>
 
+    <!-- WebAssembly Video Processor (loaded conditionally) -->
+    <script>
+        // Try to load WASM module if available
+        const wasmScript = document.createElement('script');
+        wasmScript.src = "{{ url_for('static', filename='video_processor.js') }}";
+        wasmScript.onerror = () => console.warn('WASM module not available, using server-side processing only');
+        document.head.appendChild(wasmScript);
+        
+        wasmScript.onload = () => {
+            // Load WASM processor wrapper
+            const wasmWrapperScript = document.createElement('script');
+            wasmWrapperScript.src = "{{ url_for('static', filename='wasm_video_processor.js') }}";
+            document.head.appendChild(wasmWrapperScript);
+        };
+    </script>
+    
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>
