@@ -5,11 +5,11 @@ REM Run this script after installing Emscripten
 echo Building WebAssembly video processing module...
 
 REM Set up Emscripten environment if emsdk directory exists
-if exist "emsdk\emsdk_env.bat" (
+if exist "..\emsdk\emsdk_env.bat" (
     echo Setting up Emscripten environment...
-    call emsdk\emsdk_env.bat
+    call ..\emsdk\emsdk_env.bat
 ) else (
-    echo Warning: emsdk directory not found. Make sure Emscripten is installed in ./emsdk/
+    echo Warning: emsdk directory not found. Make sure Emscripten is installed in ../emsdk/
 )
 
 REM Check if Emscripten is available
@@ -23,8 +23,8 @@ if %errorlevel% neq 0 (
 )
 
 REM Build the WASM module
-emcc video_functions_wasm.c ^
-    -o static/video_processor.js ^
+emcc ..\lib\video_functions_wasm.c ^
+    -o ..\static\video_processor.js ^
     -s EXPORTED_FUNCTIONS="[\"_malloc\", \"_free\", \"_decode_S_wasm\", \"_free_video_S_wasm\", \"_reverse_S_wasm\", \"_swap_channels_S_wasm\", \"_clip_channel_S_wasm\", \"_scale_channel_S_wasm\", \"_encode_S_wasm\"]" ^
     -s EXPORTED_RUNTIME_METHODS="[\"ccall\", \"cwrap\", \"HEAPU8\", \"HEAP32\"]" ^
     -s ALLOW_MEMORY_GROWTH=1 ^

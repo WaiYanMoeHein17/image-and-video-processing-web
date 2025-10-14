@@ -15,8 +15,8 @@ if ! command -v emcc &> /dev/null; then
 fi
 
 # Build the WASM module
-emcc video_functions_wasm.c \
-    -o static/video_processor.js \
+emcc ../lib/video_functions_wasm.c \
+    -o ../static/video_processor.js \
     -s EXPORTED_FUNCTIONS='["_malloc", "_free", "_decode_S_wasm", "_free_video_S_wasm", "_reverse_S_wasm", "_swap_channels_S_wasm", "_clip_channel_S_wasm", "_scale_channel_S_wasm", "_encode_S_wasm"]' \
     -s EXPORTED_RUNTIME_METHODS='["ccall", "cwrap", "HEAPU8", "HEAP32"]' \
     -s ALLOW_MEMORY_GROWTH=1 \

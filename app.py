@@ -14,8 +14,8 @@ import numpy as np
 import json
 import ctypes
 from ctypes import Structure, c_long, c_ubyte, POINTER
-from video_wrapper import video_processor, VIDEO_PROCESSING_AVAILABLE
-import image_functions as image_processor
+from src.video_wrapper import video_processor, VIDEO_PROCESSING_AVAILABLE
+import src.image_functions as image_processor
 
 app = Flask(__name__)
 CORS(app)

@@ -6,3 +6,6 @@
 /tests/sample_images/*
 !/tests/sample_images/README.md
 /tests/__pycache__
+/documentation
+/emsdk
+/ffmpeg
