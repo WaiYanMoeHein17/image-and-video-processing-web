@@ -5,6 +5,7 @@
 #include <immintrin.h>
 #include "video_functions.h"
 
+
 #define CLAMP(value, min, max) \
     ((value) < (min) ? (min) : ((value) > (max) ? (max) : (value)))
 

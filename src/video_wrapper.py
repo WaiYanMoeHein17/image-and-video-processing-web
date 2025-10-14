@@ -1,10 +1,11 @@
 """
-Python wrapper for libFilmMaster2000.c using ctypes
+Python wrapper for video processing library using ctypes
+Supports both custom binary format and standard video formats (MP4, MOV, AVI, etc.)
 This module provides a Python interface to the C video processing library
 """
 
 import ctypes
-from ctypes import Structure, c_long, c_ubyte, POINTER, c_char_p, c_float
+from ctypes import Structure, c_long, c_ubyte, c_int, c_double, POINTER, c_char_p, c_float
 import os
 import sys
 
@@ -49,14 +50,28 @@ class MVideo(Structure):
 class VideoProcessor:
     def __init__(self, lib_path=None):
         """Initialize the video processor with the C library"""
+        self.has_standard_format_support = False
+        
         if lib_path is None:
-            # Look for the DLL in the current project directory first
+            # Look for the DLL in the lib folder
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            lib_path = os.path.join(current_dir, "video_functions.dll")
+            lib_dir = os.path.join(os.path.dirname(current_dir), "lib")
             
-            # If not found locally, raise error
-            if not os.path.exists(lib_path):
-                raise FileNotFoundError(f"C library not found. Please ensure video_functions.dll is in the project directory or compile video_functions.c to a DLL first.")
+            # Try FFmpeg-enabled version first
+            ffmpeg_lib_path = os.path.join(lib_dir, "video_functions_ffmpeg.dll")
+            basic_lib_path = os.path.join(lib_dir, "video_functions.dll")
+            
+            if os.path.exists(ffmpeg_lib_path):
+                lib_path = ffmpeg_lib_path
+                self.has_standard_format_support = True
+            elif os.path.exists(basic_lib_path):
+                lib_path = basic_lib_path
+                print("Note: Using basic video library. Standard format support (MP4, MOV) not available.")
+            else:
+                raise FileNotFoundError(
+                    f"C library not found. Please ensure video_functions.dll or "
+                    f"video_functions_ffmpeg.dll is in the project directory."
+                )
         
         try:
             self.lib = ctypes.CDLL(lib_path)
@@ -68,7 +83,34 @@ class VideoProcessor:
     def _setup_function_signatures(self):
         """Set up function signatures for all C functions"""
         
-        # decode functions
+        # Standard format functions (if FFmpeg support is available)
+        if self.has_standard_format_support:
+            # int get_video_info(const char *filename, int *width, int *height, 
+            #                    long *num_frames, double *fps)
+            self.lib.get_video_info.argtypes = [
+                c_char_p, 
+                POINTER(c_int), 
+                POINTER(c_int),
+                POINTER(c_long), 
+                POINTER(c_double)
+            ]
+            self.lib.get_video_info.restype = c_int
+            
+            # SVideo *decode_standard_video(const char *filename)
+            self.lib.decode_standard_video.argtypes = [c_char_p]
+            self.lib.decode_standard_video.restype = POINTER(SVideo)
+            
+            # int encode_standard_video(const char *filename, const SVideo *video, 
+            #                          const char *codec_name, int fps)
+            self.lib.encode_standard_video.argtypes = [
+                c_char_p, 
+                POINTER(SVideo), 
+                c_char_p, 
+                c_int
+            ]
+            self.lib.encode_standard_video.restype = c_int
+        
+        # decode functions (custom format)
         self.lib.decode.argtypes = [c_char_p]
         self.lib.decode.restype = POINTER(Video)
         
@@ -138,10 +180,71 @@ class VideoProcessor:
         self.lib.scale_channel_M.argtypes = [POINTER(MVideo), c_ubyte, c_float]
         self.lib.scale_channel_M.restype = None
     
-    def decode_video(self, filename, mode='standard'):
-        """Decode a video file"""
+    def _is_standard_format(self, filename):
+        """Check if file is a standard video format"""
+        standard_formats = ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm']
+        ext = os.path.splitext(filename)[1].lower()
+        return ext in standard_formats
+    
+    def get_video_info(self, filename):
+        """
+        Get video information without full decoding (standard formats only)
+        
+        Args:
+            filename: Path to video file
+            
+        Returns:
+            dict with keys: width, height, num_frames, fps
+            
+        Raises:
+            RuntimeError: If standard format support is not available or file cannot be read
+        """
+        if not self.has_standard_format_support:
+            raise RuntimeError("Standard format support not available. Compile with FFmpeg to use this feature.")
+        
+        width = c_int()
+        height = c_int()
+        num_frames = c_long()
+        fps = c_double()
+        
+        result = self.lib.get_video_info(
+            filename.encode('utf-8'),
+            ctypes.byref(width),
+            ctypes.byref(height),
+            ctypes.byref(num_frames),
+            ctypes.byref(fps)
+        )
+        
+        if result != 0:
+            raise RuntimeError(f"Failed to get video info from {filename}")
+        
+        return {
+            'width': width.value,
+            'height': height.value,
+            'num_frames': num_frames.value,
+            'fps': fps.value
+        }
+    
+    def decode_video(self, filename, mode='standard', auto_detect=True):
+        """
+        Decode a video file
+        
+        Args:
+            filename: Path to video file
+            mode: 'standard' (Video), 'structured' (SVideo), or 'memory' (MVideo)
+            auto_detect: If True, automatically use standard format decoder for MP4/MOV files
+            
+        Returns:
+            Pointer to Video/SVideo/MVideo structure
+        """
         filename_bytes = filename.encode('utf-8')
         
+        # Auto-detect standard formats and use FFmpeg decoder
+        if auto_detect and self.has_standard_format_support and self._is_standard_format(filename):
+            # Standard formats always decode to SVideo
+            return self.lib.decode_standard_video(filename_bytes)
+        
+        # Use custom format decoders
         if mode == 'standard':
             return self.lib.decode(filename_bytes)
         elif mode == 'structured':
@@ -151,10 +254,37 @@ class VideoProcessor:
         else:
             raise ValueError("Mode must be 'standard', 'structured', or 'memory'")
     
-    def encode_video(self, filename, video_ptr, mode='standard'):
-        """Encode a video to file"""
+    def encode_video(self, filename, video_ptr, mode='standard', codec='libx264', fps=30, auto_detect=True):
+        """
+        Encode a video to file
+        
+        Args:
+            filename: Output file path
+            video_ptr: Pointer to Video/SVideo/MVideo structure
+            mode: 'standard' (Video), 'structured' (SVideo), or 'memory' (MVideo)
+            codec: Video codec for standard formats (libx264, libx265, etc.)
+            fps: Frames per second for standard formats
+            auto_detect: If True, automatically use standard format encoder for MP4/MOV files
+            
+        Returns:
+            0 on success, -1 on error
+        """
         filename_bytes = filename.encode('utf-8')
         
+        # Auto-detect standard formats and use FFmpeg encoder
+        if auto_detect and self.has_standard_format_support and self._is_standard_format(filename):
+            # Standard formats require SVideo structure
+            result = self.lib.encode_standard_video(
+                filename_bytes,
+                video_ptr,
+                codec.encode('utf-8'),
+                fps
+            )
+            if result != 0:
+                raise RuntimeError(f"Failed to encode video: {filename}")
+            return result
+        
+        # Use custom format encoders
         if mode == 'standard':
             return self.lib.encode(filename_bytes, video_ptr)
         elif mode == 'structured':
@@ -209,11 +339,28 @@ class VideoProcessor:
         elif mode == 'memory':
             self.lib.scale_channel_M(video_ptr, channel, scale_factor)
 
+def is_standard_format(filename):
+    """
+    Check if file is a standard video format
+    
+    Args:
+        filename: Path to video file
+        
+    Returns:
+        bool: True if file is MP4, MOV, AVI, etc.
+    """
+    standard_formats = ['.mp4', '.mov', '.avi', '.mkv', '.wmv', '.flv', '.webm']
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in standard_formats
+
+
 # Create a global instance for easy access
 try:
     video_processor = VideoProcessor()
     VIDEO_PROCESSING_AVAILABLE = True
+    STANDARD_FORMAT_SUPPORT = video_processor.has_standard_format_support
 except (FileNotFoundError, RuntimeError) as e:
     print(f"Warning: Video processing not available: {e}")
     video_processor = None
     VIDEO_PROCESSING_AVAILABLE = False
+    STANDARD_FORMAT_SUPPORT = False
