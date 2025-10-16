@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <immintrin.h>
+#include <pthread.h>
 #include "video_functions.h"
 
 
@@ -773,6 +774,54 @@ void scale_channel_M(MVideo *video, unsigned char channel, float scale_factor) {
             channel_data[i] = (unsigned char)CLAMP(scaled_value, 0.0f, 255.0f);
         }
     }
+}
+
+void scale_channel_SIMD_S (SVideo *video, unsigned char channel, float scale_factor) {
+    if (!video || channel >= video->channels) {
+        fprintf(stderr, "Invalid input to scale_channel_SIMD_S function.\n");
+        return;
+    }
+    #pragma omp parallel for
+    for(int i = 0; i < video->num_frames; i++) {
+        unsigned char *data = video->frames[i].channels[channel].data;
+        size_t channel_size = video->height * video->width;
+        size_t j = 0;
+
+        __m256 factor_vec = _mm256_set1_ps(scale_factor);
+        __m256i max_val_vec = _mm256_set1_epi8(255);
+        __m256i zero_vec = _mm256_setzero_si256();
+
+        for (; j + 31 < channel_size; j += 32) {
+            // Load 32 pixels into vector
+            __m256i pixels = _mm256_loadu_si256((__m256i *)&data[j]);
+
+            // Convert to float
+            __m256 low_bytes = _mm256_cvtepi32_ps(_mm256_unpacklo_epi8(pixels, zero_vec));
+            __m256 high_bytes = _mm256_cvtepi32_ps(_mm256_unpackhi_epi8(pixels, zero_vec));
+
+            // Scale
+            low_bytes = _mm256_mul_ps(low_bytes, factor_vec);
+            high_bytes = _mm256_mul_ps(high_bytes, factor_vec);
+
+            // Convert back to int and pack
+            __m256i low_ints = _mm256_cvtps_epi32(low_bytes);
+            __m256i high_ints = _mm256_cvtps_epi32(high_bytes);
+            __m256i scaled_pixels = _mm256_packus_epi32(low_ints, high_ints);
+            scaled_pixels = _mm256_packus_epi16(scaled_pixels, zero_vec);
+
+            // Clip to [0, 255]
+            scaled_pixels = _mm256_min_epu8(scaled_pixels, max_val_vec);
+
+            // Store the scaled pixels back to memory
+            _mm256_storeu_si256((__m256i *)&data[j], scaled_pixels);
+        }
+
+        for (; j < channel_size; j++) {
+            float scaled_value = data[j] * scale_factor;
+            data[j] = CLAMP(scaled_value, 0.0f, 255.0f);
+        }
+    }
+    
 }
 
 // end

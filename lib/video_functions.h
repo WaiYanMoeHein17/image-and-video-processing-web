@@ -97,6 +97,8 @@ float scale_factor);
 void scale_channel_M(MVideo *video, unsigned char channel,
 float scale_factor);
 
+void scale_channel_SIMD_S (SVideo *video, unsigned char channel);
+
 void free_video(Video *video);
 
 void free_video_S(SVideo *video);
