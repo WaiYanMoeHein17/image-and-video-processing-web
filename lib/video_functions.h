@@ -88,6 +88,9 @@ unsigned char min_value, unsigned char max_value);
 void clip_channel_M(MVideo *video, unsigned char channel,
 unsigned char min_value, unsigned char max_value);
 
+void clip_channel_SIMD_S (SVideo *video, unsigned char channel,
+unsigned char min_value, unsigned char max_value);
+
 void scale_channel(Video *video, unsigned char channel,
 float scale_factor);
 

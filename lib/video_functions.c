@@ -24,7 +24,7 @@ Video *decode(const char *filename) {
         return NULL;
     }
 
-    Video *video = (Video *)malloc(sizeof(Video));
+    Video *video = (Video *)_mm_malloc(sizeof(Video), 64);
     if (!video) {
         perror("Error allocating memory for Video");
         fclose(file);
@@ -44,7 +44,7 @@ Video *decode(const char *filename) {
     size_t frame_size = video->channels * video->height * video->width;
     size_t total_size = frame_size * video->num_frames;
 
-    video->data = (unsigned char *)malloc(total_size);
+    video->data = (unsigned char *)_mm_malloc(total_size, 64);
     if (!video->data) {
         perror("Error allocating memory for frame data");
         free(video);
@@ -79,7 +79,7 @@ SVideo *decode_S(const char *filename) {
         return NULL;
     }
 
-    SVideo *svideo = (SVideo *)malloc(sizeof(SVideo));
+    SVideo *svideo = (SVideo *)_mm_malloc(sizeof(SVideo),64);
     if (!svideo) {
         perror("Error allocating memory for SVideo");
         fclose(file);
@@ -108,7 +108,7 @@ SVideo *decode_S(const char *filename) {
         num_frames * num_channels * sizeof(Channel) +
         total_channel_data_size;
 
-    unsigned char *memory_block = (unsigned char *)malloc(total_size);
+    unsigned char *memory_block = (unsigned char *)_mm_malloc(total_size,64);
     if (!memory_block) {
         perror("Error allocating contiguous memory block");
         free(svideo);
@@ -163,7 +163,7 @@ MVideo *decode_M(const char *filename) {
         return NULL;
     }
 
-    MVideo *video = (MVideo *)malloc(sizeof(MVideo));
+    MVideo *video = (MVideo *)_mm_malloc(sizeof(MVideo),64);
     if (!video) {
         perror("Error allocating memory for Video");
         fclose(file);
@@ -183,7 +183,7 @@ MVideo *decode_M(const char *filename) {
     size_t frame_size = video->channels * video->height * video->width;
     size_t total_size = frame_size * video->num_frames;
 
-    video->data = (unsigned char *)malloc(total_size);
+    video->data = (unsigned char *)_mm_malloc(total_size,64);
     if (!video->data) {
         perror("Error allocating memory for frame data");
         free(video);
@@ -389,7 +389,7 @@ void reverse(Video *video) {
 
     size_t frame_size = video->channels * video->height * video->width;
 
-    unsigned char *temp = (unsigned char *)malloc(frame_size);
+    unsigned char *temp = (unsigned char *)_mm_malloc(frame_size, 64);
     if (!temp) {
         perror("Error allocating memory for reverse function");
         return;
@@ -443,7 +443,7 @@ void reverse_M(MVideo *video) {
 
     size_t frame_size = video->channels * video->height * video->width;
 
-    unsigned char *temp = (unsigned char *)malloc(frame_size);
+    unsigned char *temp = (unsigned char *)_mm_malloc(frame_size, 64);
     if (!temp) {
         perror("Error allocating memory for reverse function");
         return;
@@ -774,6 +774,40 @@ void scale_channel_M(MVideo *video, unsigned char channel, float scale_factor) {
             channel_data[i] = (unsigned char)CLAMP(scaled_value, 0.0f, 255.0f);
         }
     }
+}
+
+void clip_channel_SIMD_S (SVideo *video, unsigned char channel,
+unsigned char min_value, unsigned char max_value) {
+    if (!video || channel >= video->channels) {
+        fprintf(stderr, "Invalid input to clip_channel_SIMD_S function.\n");
+        return;
+    }
+    #pragma omp parallel for
+    for(int i = 0; i < video->num_frames; i++) {
+        unsigned char *data = video->frames[i].channels[channel].data;
+        size_t channel_size = video->height * video->width;
+        size_t j = 0;
+
+        __m256i min_val_vec = _mm256_set1_epi8(min_value);
+        __m256i max_val_vec = _mm256_set1_epi8(max_value);
+
+        for (; j + 31 < channel_size; j += 32) {
+            // Load 32 pixels into vector
+            __m256i pixels = _mm256_loadu_si256((__m256i *)&data[j]);
+
+            // Clip ALL pixel values simultaneously
+            pixels = _mm256_min_epu8(_mm256_max_epu8(pixels, min_val_vec),
+            max_val_vec);
+
+            // store the clipped pixels back to memory
+            _mm256_storeu_si256((__m256i *)&data[j], pixels);
+        }
+
+        for (; j < channel_size; j++) {
+            data[j] = CLAMP(data[j], min_value, max_value);
+        }
+    }
+    
 }
 
 void scale_channel_SIMD_S (SVideo *video, unsigned char channel, float scale_factor) {
